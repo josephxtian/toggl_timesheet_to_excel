@@ -3,9 +3,14 @@ import dotenv
 import datetime as dt
 import requests
 from requests.auth import HTTPBasicAuth
-from openpyxl import load_workbook
+from openpyxl import load_workbook, _WorksheetOrChartsheetLike
 from collections import defaultdict
 from dateutil import parser
+
+"""Program to document toggle timesheets onto a given spreadsheet.
+
+Will only work if timesheet contains only 2 entries per day.
+"""
 
 COL_DATE = "A"
 COL_MORNING_IN = "B"
@@ -20,14 +25,17 @@ user_agent = os.getenv("TOGGL_EMAIL")
 api_token = os.getenv("TOGGL_API_TOKEN")
 excel_path = os.getenv("EXCEL_PATH")
 
-def find_last_filled_row(ws):
+def find_last_filled_row(ws:_WorksheetOrChartsheetLike) -> int:
+    """Find last row filled based on if morning is populated."""
     row = START_ROW
     print(ws[f"{COL_MORNING_IN}{row}"].value)
-    while ws[f"{COL_MORNING_IN}{row}"].value:
+    while (ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value
+        or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)):
         row += 1
     return row - 1
 
-def get_fetch_range(ws, last_row):
+def get_fetch_range(ws:_WorksheetOrChartsheetLike, last_row:int) -> tuple[dt.datetime]:
+    """Find range of sheet to fill."""
     if last_row < START_ROW:
         start_date = ws[f"{COL_DATE}{START_ROW}"].value
     else:
@@ -37,7 +45,8 @@ def get_fetch_range(ws, last_row):
     end_date = dt.datetime.today()
     return start_date, end_date
 
-def fetch_toggl_entries(start_date:dt.date,end_date:dt.date):
+def fetch_toggl_entries(start_date:dt.date,end_date:dt.date) -> list:
+    """API call to toggl to get required information."""
     url = r"https://api.track.toggl.com/reports/api/v2/details"
     params = {
         "workspace_id": workspace_id,
@@ -67,7 +76,8 @@ def fetch_toggl_entries(start_date:dt.date,end_date:dt.date):
     
     return entries
 
-def group_entries_by_date(entries) -> dt.datetime:
+def group_entries_by_date(entries:list) -> dt.datetime:
+    """Group entries by date."""
     days = defaultdict(list)
 
     for e in entries:
@@ -77,7 +87,7 @@ def group_entries_by_date(entries) -> dt.datetime:
 
     return days
 
-def write_times(ws, start_row, grouped_entires:dt.datetime):
+def write_times(ws:_WorksheetOrChartsheetLike, start_row:int, grouped_entires:dt.datetime):
     row = start_row
 
     for day in sorted(grouped_entires.keys()):
@@ -98,9 +108,8 @@ def write_times(ws, start_row, grouped_entires:dt.datetime):
 
 def main():
     wb = load_workbook(excel_path)
-    print("success")
+    print("Workbook loaded.")
     ws = wb.active
-    print(ws)
 
     last_row = find_last_filled_row(ws)
     start_date, end_date = get_fetch_range(ws, last_row)
