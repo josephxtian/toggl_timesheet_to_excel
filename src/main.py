@@ -1,11 +1,11 @@
 import os
 import dotenv
+import json
 import datetime as dt
 import requests
 from requests.auth import HTTPBasicAuth
-from openpyxl import load_workbook, _WorksheetOrChartsheetLike
+from openpyxl import load_workbook
 from collections import defaultdict
-from dateutil import parser
 
 """Program to document toggle timesheets onto a given spreadsheet.
 
@@ -19,29 +19,35 @@ COL_AFTERNOON_IN = "D"
 COL_AFTERNOON_OUT = "E"
 START_ROW = 11
 
+DEBUG = False
+
 dotenv.load_dotenv()
 workspace_id = os.getenv("WORKSPACE_ID")
 user_agent = os.getenv("TOGGL_EMAIL")
 api_token = os.getenv("TOGGL_API_TOKEN")
 excel_path = os.getenv("EXCEL_PATH")
 
-def find_last_filled_row(ws:_WorksheetOrChartsheetLike) -> int:
+def find_last_filled_row(ws) -> int:
     """Find last row filled based on if morning is populated."""
     row = START_ROW
-    print(ws[f"{COL_MORNING_IN}{row}"].value)
     while (ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value
         or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)):
-        row += 1
+        if ws[f"{COL_MORNING_IN}{row}"].value == "Weekend":
+            row += 2
+        else:
+            row += 1
     return row - 1
 
-def get_fetch_range(ws:_WorksheetOrChartsheetLike, last_row:int) -> tuple[dt.datetime]:
+def get_fetch_range(ws, last_row:int) -> tuple[dt.datetime]:
     """Find range of sheet to fill."""
-    if last_row < START_ROW:
-        start_date = ws[f"{COL_DATE}{START_ROW}"].value
-    else:
-        print(ws[f"{COL_DATE}{last_row}"].value)
-        start_date = ws[f"{COL_DATE}{last_row}"].value + dt.timedelta(days=1)
+    sheet_start_date = ws[f"{COL_DATE}{START_ROW}"].value
 
+    if last_row < START_ROW:
+        start_date = sheet_start_date
+    else:
+        day_count = last_row - START_ROW
+        start_date = sheet_start_date + dt.timedelta(days=day_count)
+        
     end_date = dt.datetime.today()
     return start_date, end_date
 
@@ -66,13 +72,18 @@ def fetch_toggl_entries(start_date:dt.date,end_date:dt.date) -> list:
         )
         r.raise_for_status()
         data = r.json()
-        print(data)
 
         entries.extend(data["data"])
 
         if params["page"] * data["per_page"] >= data["total_count"]:
             break
         params["page"] +=1
+
+    if DEBUG:
+        json_fp = "./api_output.json"
+        with open(json_fp,'w') as wf:
+            json.dump(data,wf)
+        print(f"Exported API response to {json_fp}.")
     
     return entries
 
@@ -81,13 +92,14 @@ def group_entries_by_date(entries:list) -> dt.datetime:
     days = defaultdict(list)
 
     for e in entries:
-        start = parser.isoparse(e["start"])
-        end = parser.isoparse(e["end"])
+        start = dt.datetime.fromisoformat(e["start"])
+        end = dt.datetime.fromisoformat(e["end"])
         days[start.date()].append((start,end))
 
     return days
 
-def write_times(ws:_WorksheetOrChartsheetLike, start_row:int, grouped_entires:dt.datetime):
+def write_times(ws, start_row:int, grouped_entires:dt.datetime):
+    """Write timesheet times to sheet."""
     row = start_row
 
     for day in sorted(grouped_entires.keys()):
@@ -99,6 +111,13 @@ def write_times(ws:_WorksheetOrChartsheetLike, start_row:int, grouped_entires:dt
         (m_in, m_out), (a_in, a_out) = blocks
 
         ws[f"{COL_DATE}{row}"] = day
+        
+        if DEBUG:
+            print("COL_MORNING_IN = ",ws[f"{COL_MORNING_IN}{row}"])
+            print("COL_MORNING_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
+            print("COL_AFTERNOON_IN = ",ws[f"{COL_MORNING_IN}{row}"])
+            print("COL_AFTERNOON_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
+        
         ws[f"{COL_MORNING_IN}{row}"] = m_in.strftime("%H:%M")
         ws[f"{COL_MORNING_OUT}{row}"] = m_out.strftime("%H:%M")
         ws[f"{COL_AFTERNOON_IN}{row}"] = a_in.strftime("%H:%M")
