@@ -98,32 +98,41 @@ def group_entries_by_date(entries:list) -> dt.datetime:
 
     return days
 
-def write_times(ws, start_row:int, grouped_entires:dt.datetime):
+def write_times(ws, start_row:int, grouped_entries:dt.datetime):
     """Write timesheet times to sheet."""
     row = start_row
 
-    for day in sorted(grouped_entires.keys()):
-        blocks = sorted(grouped_entires[day], key=lambda x: x[0])
+    for day in sorted(grouped_entries.keys()):
+        blocks = sorted(grouped_entries[day], key=lambda x: x[0])
 
         if len(blocks) != 2:
             raise ValueError(f"{day} does not have exactly two time blocks")
     
         (m_in, m_out), (a_in, a_out) = blocks
 
-        ws[f"{COL_DATE}{row}"] = day
+        m_out += dt.timedelta(minutes=2)
+        a_out += dt.timedelta(minutes=2)
         
         if DEBUG:
+            print("BLOCKS = ",blocks)
             print("COL_MORNING_IN = ",ws[f"{COL_MORNING_IN}{row}"])
             print("COL_MORNING_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
             print("COL_AFTERNOON_IN = ",ws[f"{COL_MORNING_IN}{row}"])
             print("COL_AFTERNOON_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
+
+        selected_date = ws[f"{COL_DATE}{row}"].value.date()
         
+        while selected_date != m_in.date() or selected_date != a_in.date():
+            row += 1
+            selected_date = ws[f"{COL_DATE}{row}"].value.date()
+
         ws[f"{COL_MORNING_IN}{row}"] = m_in.strftime("%H:%M")
         ws[f"{COL_MORNING_OUT}{row}"] = m_out.strftime("%H:%M")
         ws[f"{COL_AFTERNOON_IN}{row}"] = a_in.strftime("%H:%M")
         ws[f"{COL_AFTERNOON_OUT}{row}"] = a_out.strftime("%H:%M")
 
-        row += 1
+        row +=1
+
 
 def main():
     wb = load_workbook(excel_path)
