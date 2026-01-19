@@ -146,7 +146,7 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
 
 
 def main():
-    wb = load_workbook(excel_path, data_only=True)
+    wb = load_workbook(excel_path)
     print("Workbook loaded.")
     ws = wb.active
 
