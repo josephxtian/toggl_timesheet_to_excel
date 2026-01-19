@@ -28,7 +28,7 @@ api_token = os.getenv("TOGGL_API_TOKEN")
 excel_path = os.getenv("EXCEL_PATH")
 
 def find_last_filled_row(ws) -> int:
-    """Find last row filled based on if morning is populated."""
+    """Find last row filled based on if morning or afternoon is populated."""
     row = START_ROW
     while (ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value
         or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)):
@@ -42,13 +42,11 @@ def get_fetch_range(ws, last_row:int) -> tuple[dt.datetime]:
     """Find range of sheet to fill."""
     sheet_start_date = ws[f"{COL_DATE}{START_ROW}"].value
 
-    if last_row < START_ROW:
-        start_date = sheet_start_date
-    else:
-        day_count = last_row - START_ROW
-        start_date = sheet_start_date + dt.timedelta(days=day_count)
-        
-    end_date = dt.datetime.today()
+    day_count = last_row - START_ROW
+    start_date = sheet_start_date + dt.timedelta(days=day_count)
+    
+    # End date yesterday
+    end_date = dt.datetime.today() - dt.timedelta(days=1)
     return start_date, end_date
 
 def fetch_toggl_entries(start_date:dt.date,end_date:dt.date) -> list:
@@ -101,6 +99,7 @@ def group_entries_by_date(entries:list) -> dt.datetime:
 def write_times(ws, start_row:int, grouped_entries:dt.datetime):
     """Write timesheet times to sheet."""
     row = start_row
+    t_set_up = dt.timedelta(minutes=2)
 
     for day in sorted(grouped_entries.keys()):
         blocks = sorted(grouped_entries[day], key=lambda x: x[0])
@@ -109,9 +108,8 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
             raise ValueError(f"{day} does not have exactly two time blocks")
     
         (m_in, m_out), (a_in, a_out) = blocks
-
-        m_out += dt.timedelta(minutes=2)
-        a_out += dt.timedelta(minutes=2)
+        m_out += t_set_up
+        a_out += t_set_up
         
         if DEBUG:
             print("BLOCKS = ",blocks)
@@ -131,11 +129,24 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
         ws[f"{COL_AFTERNOON_IN}{row}"] = a_in.strftime("%H:%M")
         ws[f"{COL_AFTERNOON_OUT}{row}"] = a_out.strftime("%H:%M")
 
+        time_count = m_out - m_in + a_out - a_in
+        if time_count < dt.timedelta(hours=7, minutes=30):
+            toil_accrued = dt.timedelta(hours=7, minutes=30) - time_count
+            symbol = "-"
+        else:
+            toil_accrued = time_count - dt.timedelta(hours=7, minutes=30)
+            symbol = ""
+
+        print(
+            f"{selected_date} --- {str(time_count)} --- "\
+            f"TOIL accrued = {symbol}{toil_accrued}"
+        )
+
         row +=1
 
 
 def main():
-    wb = load_workbook(excel_path)
+    wb = load_workbook(excel_path, data_only=True)
     print("Workbook loaded.")
     ws = wb.active
 
