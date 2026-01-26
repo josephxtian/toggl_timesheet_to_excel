@@ -108,7 +108,7 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
             raise ValueError(f"{day} does not have exactly two time blocks")
     
         (m_in, m_out), (a_in, a_out) = blocks
-        m_out += t_set_up
+        m_in-= t_set_up
         a_out += t_set_up
         
         if DEBUG:
