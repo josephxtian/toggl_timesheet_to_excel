@@ -35,10 +35,6 @@ def find_last_filled_row(ws) -> int:
         or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)
         or (ws[f"{COL_TOTAL}{row}"].value in ["HTOIL","FTOIL"])
     ):
-        print(ws[f"{COL_TOTAL}{row}"].value)
-        print("1",bool(ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value))
-        print("2",bool(ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value))
-        print("3",ws[f"{COL_TOTAL}{row}"].value in ["HTOIL","FTOIL"])
         if ws[f"{COL_MORNING_IN}{row}"].value == "Weekend":
             row += 2
         else:
