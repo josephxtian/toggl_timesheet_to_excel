@@ -17,9 +17,10 @@ COL_MORNING_IN = "B"
 COL_MORNING_OUT = "C"
 COL_AFTERNOON_IN = "D"
 COL_AFTERNOON_OUT = "E"
+COL_TOTAL = "F"
 START_ROW = 11
 
-DEBUG = False
+DEBUG = True
 
 dotenv.load_dotenv()
 workspace_id = os.getenv("WORKSPACE_ID")
@@ -30,8 +31,14 @@ excel_path = os.getenv("EXCEL_PATH")
 def find_last_filled_row(ws) -> int:
     """Find last row filled based on if morning or afternoon is populated."""
     row = START_ROW
-    while (ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value
-        or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)):
+    while ((ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value)
+        or (ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value)
+        or (ws[f"{COL_TOTAL}{row}"].value in ["HTOIL","FTOIL"])
+    ):
+        print(ws[f"{COL_TOTAL}{row}"].value)
+        print("1",bool(ws[f"{COL_MORNING_IN}{row}"].value and ws[f"{COL_MORNING_OUT}{row}"].value))
+        print("2",bool(ws[f"{COL_AFTERNOON_IN}{row}"].value and ws[f"{COL_AFTERNOON_OUT}{row}"].value))
+        print("3",ws[f"{COL_TOTAL}{row}"].value in ["HTOIL","FTOIL"])
         if ws[f"{COL_MORNING_IN}{row}"].value == "Weekend":
             row += 2
         else:
@@ -112,17 +119,21 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
         a_out += t_set_up
         
         if DEBUG:
+            print("DATE = ", ws[f"{COL_DATE}{row}"], ws[f"{COL_DATE}{row}"].value)
             print("BLOCKS = ",blocks)
-            print("COL_MORNING_IN = ",ws[f"{COL_MORNING_IN}{row}"])
-            print("COL_MORNING_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
-            print("COL_AFTERNOON_IN = ",ws[f"{COL_MORNING_IN}{row}"])
-            print("COL_AFTERNOON_OUT = ",ws[f"{COL_MORNING_IN}{row}"])
+            print("COL_MORNING_IN = ",ws[f"{COL_MORNING_IN}{row}"],ws[f"{COL_MORNING_IN}{row}"].value)
+            print("COL_MORNING_OUT = ",ws[f"{COL_MORNING_OUT}{row}"],ws[f"{COL_MORNING_OUT}{row}"].value)
+            print("COL_AFTERNOON_IN = ",ws[f"{COL_AFTERNOON_IN}{row}"],ws[f"{COL_AFTERNOON_IN}{row}"].value)
+            print("COL_AFTERNOON_OUT = ",ws[f"{COL_AFTERNOON_OUT}{row}"],ws[f"{COL_AFTERNOON_OUT}{row}"].value)
 
         selected_date = ws[f"{COL_DATE}{row}"].value.date()
         
-        while selected_date != m_in.date() or selected_date != a_in.date():
-            row += 1
-            selected_date = ws[f"{COL_DATE}{row}"].value.date()
+        if selected_date > m_in.date() or selected_date > a_in.date():
+            continue
+        else:
+            while selected_date != m_in.date() or selected_date != a_in.date():
+                row += 1
+                selected_date = ws[f"{COL_DATE}{row}"].value.date()
 
         ws[f"{COL_MORNING_IN}{row}"] = m_in.strftime("%H:%M")
         ws[f"{COL_MORNING_OUT}{row}"] = m_out.strftime("%H:%M")
