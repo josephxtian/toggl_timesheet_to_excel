@@ -107,10 +107,36 @@ def write_times(ws, start_row:int, grouped_entries:dt.datetime):
     for day in sorted(grouped_entries.keys()):
         blocks = sorted(grouped_entries[day], key=lambda x: x[0])
 
-        if len(blocks) != 2:
-            raise ValueError(f"{day} does not have exactly two time blocks")
-    
-        (m_in, m_out), (a_in, a_out) = blocks
+        if len(blocks) == 2:
+            print("Two clear time blocks. Assigning to morning and afternoon.")
+            (m_in, m_out), (a_in, a_out) = blocks
+        elif len(blocks) > 2:
+            print(
+                "More than two time blocks."\
+                "Figuring out how to split between morning and afternoon."
+            )
+            m_in, m_out = blocks[0]
+            for n in range(1,len(blocks)):
+                t_in, t_out = blocks[n]
+                if t_in - m_out <= dt.timedelta(minutes=3):
+                    m_out = t_out
+                else:
+                    a_in = t_in
+                    a_out = t_out
+                    last_num = n
+                    break
+            
+            for n in range(last_num+1,len(blocks)):
+                t_in, t_out = blocks[n]
+                if t_in - a_out <= dt.timedelta(minutes=3):
+                    a_out = t_out
+                else:
+                    raise ValueError(
+                        "Cannot seperate morning and afternoon time periods."
+                    )
+        else:
+            raise ValueError("Single time block. Cannot seperate morning and afternoon time periods.")
+                    
         m_in-= t_set_up
         a_out += t_set_up
         
@@ -172,6 +198,8 @@ def main():
     wb.save(excel_path)
 
     print("Timesheet updated successfully.")
+
+    os.startfile(excel_path)
 
 if __name__ == "__main__":
     main()
